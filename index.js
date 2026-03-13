@@ -1236,8 +1236,8 @@ async function loadSettings() {
     $("#auto-parent-preset-switch").prop("checked", settings.enableAutoParentPreset);
     const mergedGraph = settings.mergedGraph || {};
     $("#merged-graph-preview").val(Object.keys(mergedGraph).length > 0 ? JSON.stringify(mergedGraph, null, 2) : "");
-    $("#write-new-chapter-outline").val(settings.newChapterOutline || "");
     $("#write-content-preview").val(settings.writeContentPreview || "");
+    $("#write-new-chapter-outline").val(settings.newChapterOutline || "");
     if (settings.graphValidateResultShow) $("#graph-validate-result").show();
     if (settings.qualityResultShow) $("#quality-result-block").show();
     $("#precheck-status").text(settings.precheckStatus || "未执行").removeClass("status-default status-success status-danger").addClass(settings.precheckStatus === "通过"?"status-success": settings.precheckStatus === "不通过"? "status-danger": "status-default");
@@ -1946,6 +1946,7 @@ function initContinueChainEvents() {
 async function generateContinueWrite(targetChainId) {
     const selectedBaseChapterId = $('#write-chapter-select').val();
     const editedBaseChapterContent = $('#write-chapter-content').val().trim();
+    const newChapterOutline = $('#write-new-chapter-outline').val().trim();
     const wordCount = parseInt($('#write-word-count').val()) || 2000;
     const mergedGraph = extension_settings[extensionName].mergedGraph || {};
     const enableQualityCheck = extension_settings[extensionName].enableQualityCheck;
@@ -1979,6 +1980,9 @@ async function generateContinueWrite(targetChainId) {
     });
     const baseChapterTitle = currentParsedChapters.find(c => c.id === baseChapterId)?.title || '基准章节';
     fullContextContent += `${baseChapterTitle}\n${editedBaseChapterContent}\n\n`;
+    if (newChapterOutline) {
+        fullContextContent += `新章节大纲\n${newChapterOutline}\n\n`;
+    }
     const targetBeforeChapters = continueWriteChain.slice(0, targetChainId + 1);
     targetBeforeChapters.forEach((chapter, index) => {
         fullContextContent += `续写章节 ${index + 1}\n${chapter.content}\n\n`;
@@ -1992,7 +1996,7 @@ async function generateContinueWrite(targetChainId) {
         conflictWarning: precheckResult.conflictWarning,
         targetChapterTitle: targetChapter.title
     });
-    const userPrompt = `小说核心设定知识图谱：${JSON.stringify(useGraph)} 完整前文上下文：${fullContextContent} 请基于以上完整的前文内容和知识图谱，按照规则续写后续的新章节正文，确保和前文最后一段内容完美衔接，不重复前文情节。`;
+    const userPrompt = `小说核心设定知识图谱：${JSON.stringify(useGraph)} 完整前文上下文：${fullContextContent} ${newChapterOutline ? `新章节大纲：${newChapterOutline}` : ''} 请基于以上完整的前文内容和知识图谱，按照规则续写后续的新章节正文，确保和前文最后一段内容完美衔接，不重复前文情节。`;
     isGeneratingWrite = true;
     stopGenerateFlag = false;
     setButtonDisabled('#write-generate-btn, .continue-write-btn', true);
@@ -2102,10 +2106,7 @@ async function generateNovelWrite() {
             wordCount: wordCount,
             conflictWarning: precheckResult.conflictWarning
         });
-        const userPrompt = `小说核心设定知识图谱：${JSON.stringify(useGraph)}
-基准章节内容：${editedChapterContent}
-新章节大纲：${newChapterOutline || "无"}
-请基于以上内容，按照规则续写后续的章节正文。`;
+        const userPrompt = `小说核心设定知识图谱：${JSON.stringify(useGraph)}\n基准章节内容：${editedChapterContent}\n新章节大纲：${newChapterOutline || '无'}\n请基于以上内容，按照规则续写后续的章节正文。`;
         $('#write-status').text('正在生成续写章节，请稍候...');
         // 替换为带破限的API调用
         let continueContent = await generateRawWithBreakLimit({ systemPrompt, prompt: userPrompt, ...getActivePresetParams()});
@@ -2255,13 +2256,13 @@ jQuery(async () => {
             extension_settings[extensionName].continueChapterIdCounter = 1;
             extension_settings[extensionName].selectedBaseChapterId = "";
             extension_settings[extensionName].newChapterOutline = "";
-            extension_settings[extensionName].newChapterOutline = "";
-        extension_settings[extensionName].writeContentPreview = "";
+            extension_settings[extensionName].writeContentPreview = "";
             extension_settings[extensionName].readerState = structuredClone(defaultSettings.readerState);
             // 新增：重置分批合并状态
             extension_settings[extensionName].batchMergedGraphs = [];
             batchMergedGraphs = [];
             $('#merged-graph-preview').val('');
+            $('#write-new-chapter-outline').val('');
             $('#write-content-preview').val('');
             continueWriteChain = [];
             continueChapterIdCounter = 1;
@@ -2307,6 +2308,7 @@ jQuery(async () => {
             extension_settings[extensionName].batchMergedGraphs = [];
             batchMergedGraphs = [];
             $('#merged-graph-preview').val('');
+            $('#write-new-chapter-outline').val('');
             $('#write-content-preview').val('');
             continueWriteChain = [];
             continueChapterIdCounter = 1;
@@ -2558,7 +2560,6 @@ jQuery(async () => {
     });
     $("#write-clear-btn").off("click").on("click", () => {
         $('#write-content-preview').val('');
-        $('#write-new-chapter-outline').val('');
         $('#write-status').text('');
         $('#quality-result-block').hide();
         extension_settings[extensionName].writeContentPreview = "";
