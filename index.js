@@ -167,6 +167,7 @@ const defaultSettings = {
         "drawer-precheck": false
     },
     selectedBaseChapterId: "",
+    newChapterOutline: "",
     writeContentPreview: "",
     graphValidateResultShow: false,
     qualityResultShow: false,
@@ -1235,6 +1236,7 @@ async function loadSettings() {
     $("#auto-parent-preset-switch").prop("checked", settings.enableAutoParentPreset);
     const mergedGraph = settings.mergedGraph || {};
     $("#merged-graph-preview").val(Object.keys(mergedGraph).length > 0 ? JSON.stringify(mergedGraph, null, 2) : "");
+    $("#write-new-chapter-outline").val(settings.newChapterOutline || "");
     $("#write-content-preview").val(settings.writeContentPreview || "");
     if (settings.graphValidateResultShow) $("#graph-validate-result").show();
     if (settings.qualityResultShow) $("#quality-result-block").show();
@@ -2061,6 +2063,7 @@ async function generateContinueWrite(targetChainId) {
 async function generateNovelWrite() {
     const selectedChapterId = $('#write-chapter-select').val();
     const editedChapterContent = $('#write-chapter-content').val().trim();
+    const newChapterOutline = $('#write-new-chapter-outline').val().trim();
     const wordCount = parseInt($('#write-word-count').val()) || 2000;
     const mergedGraph = extension_settings[extensionName].mergedGraph || {};
     const enableQualityCheck = extension_settings[extensionName].enableQualityCheck;
@@ -2099,7 +2102,10 @@ async function generateNovelWrite() {
             wordCount: wordCount,
             conflictWarning: precheckResult.conflictWarning
         });
-        const userPrompt = `小说核心设定知识图谱：${JSON.stringify(useGraph)}基准章节内容：${editedChapterContent}请基于以上内容，按照规则续写后续的章节正文。`;
+        const userPrompt = `小说核心设定知识图谱：${JSON.stringify(useGraph)}
+基准章节内容：${editedChapterContent}
+新章节大纲：${newChapterOutline || "无"}
+请基于以上内容，按照规则续写后续的章节正文。`;
         $('#write-status').text('正在生成续写章节，请稍候...');
         // 替换为带破限的API调用
         let continueContent = await generateRawWithBreakLimit({ systemPrompt, prompt: userPrompt, ...getActivePresetParams()});
@@ -2248,7 +2254,9 @@ jQuery(async () => {
             extension_settings[extensionName].continueWriteChain = [];
             extension_settings[extensionName].continueChapterIdCounter = 1;
             extension_settings[extensionName].selectedBaseChapterId = "";
-            extension_settings[extensionName].writeContentPreview = "";
+            extension_settings[extensionName].newChapterOutline = "";
+            extension_settings[extensionName].newChapterOutline = "";
+        extension_settings[extensionName].writeContentPreview = "";
             extension_settings[extensionName].readerState = structuredClone(defaultSettings.readerState);
             // 新增：重置分批合并状态
             extension_settings[extensionName].batchMergedGraphs = [];
@@ -2292,6 +2300,7 @@ jQuery(async () => {
             extension_settings[extensionName].continueWriteChain = [];
             extension_settings[extensionName].continueChapterIdCounter = 1;
             extension_settings[extensionName].selectedBaseChapterId = "";
+            extension_settings[extensionName].newChapterOutline = "";
             extension_settings[extensionName].writeContentPreview = "";
             extension_settings[extensionName].readerState = structuredClone(defaultSettings.readerState);
             // 新增：重置分批合并状态
@@ -2496,6 +2505,10 @@ jQuery(async () => {
         }
         validateContinuePrecondition(selectedChapterId, modifiedContent);
     });
+    $("#write-new-chapter-outline").off("input").on("input", (e) => {
+        extension_settings[extensionName].newChapterOutline = $(e.target).val();
+        saveSettingsDebounced();
+    });
     $("#quality-check-switch").off("change").on("change", (e) => {
         const isChecked = Boolean($(e.target).prop("checked"));
         extension_settings[extensionName].enableQualityCheck = isChecked;
@@ -2545,6 +2558,7 @@ jQuery(async () => {
     });
     $("#write-clear-btn").off("click").on("click", () => {
         $('#write-content-preview').val('');
+        $('#write-new-chapter-outline').val('');
         $('#write-status').text('');
         $('#quality-result-block').hide();
         extension_settings[extensionName].writeContentPreview = "";
