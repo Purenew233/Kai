@@ -167,7 +167,6 @@ const defaultSettings = {
         "drawer-precheck": false
     },
     selectedBaseChapterId: "",
-    newChapterOutline: "",
     writeContentPreview: "",
     graphValidateResultShow: false,
     qualityResultShow: false,
@@ -188,6 +187,11 @@ const defaultSettings = {
     enableAutoParentPreset: true,
     // 新增：分批合并中间结果存储
     batchMergedGraphs: []
+    // ... 保留原有所有字段 ...
+    writeContentPreview: "",
+    // 新增：新章节大纲字段
+    writeChapterOutline: "", 
+    // ... 保留原有所有字段 ...
 };
 // 全局状态缓存（原有字段完全不变，新增分批合并状态+预设名缓存）
 let currentParsedChapters = [];
@@ -1016,93 +1020,6 @@ async function importChapterGraphs(file) {
     };
     reader.readAsText(file, 'UTF-8');
 }
-
-// ==============================================
-// 新增：续写章节链条导入导出功能
-// ==============================================
-function exportContinueWriteChain() {
-    if (!Array.isArray(continueWriteChain) || continueWriteChain.length === 0) {
-        toastr.warning('没有可导出的续写章节，请先生成或导入续写章节', "小说续写器");
-        return;
-    }
-    const exportData = {
-        exportTime: new Date().toISOString(),
-        extensionName,
-        version: extension_settings[extensionName]?.version || '2.2.0',
-        selectedBaseChapterId: $('#write-chapter-select').val() || extension_settings[extensionName].selectedBaseChapterId || '',
-        continueChapterIdCounter,
-        continueWriteChain
-    };
-    const jsonString = JSON.stringify(exportData, null, 2);
-    const blob = new Blob([jsonString], { type: 'application/json' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = '小说续写章节链条.json';
-    a.click();
-    URL.revokeObjectURL(url);
-    toastr.success(`续写章节已导出，共${continueWriteChain.length}章`, "小说续写器");
-}
-async function importContinueWriteChain(file) {
-    if (!file) return;
-    const reader = new FileReader();
-    reader.onload = (event) => {
-        try {
-            const importData = JSON.parse(removeBOM(String(event.target.result || '').trim()));
-            const importedChain = Array.isArray(importData)
-                ? importData
-                : Array.isArray(importData.continueWriteChain)
-                    ? importData.continueWriteChain
-                    : null;
-            if (!importedChain) {
-                throw new Error('续写章节格式错误，缺少 continueWriteChain 数组');
-            }
-            const normalizedChain = importedChain.map((item, index) => {
-                const numericId = Number(item?.id);
-                const baseChapterId = item?.baseChapterId === '' || item?.baseChapterId === null || item?.baseChapterId === undefined
-                    ? null
-                    : Number(item.baseChapterId);
-                const content = typeof item?.content === 'string' ? item.content.trim() : '';
-                return {
-                    id: Number.isFinite(numericId) ? numericId : (index + 1),
-                    title: typeof item?.title === 'string' && item.title.trim() ? item.title.trim() : `续写章节 ${index + 1}`,
-                    content,
-                    baseChapterId: Number.isFinite(baseChapterId) ? baseChapterId : null
-                };
-            }).filter(item => item.content);
-            if (normalizedChain.length === 0) {
-                throw new Error('导入数据中没有有效的续写章节内容');
-            }
-            const maxId = normalizedChain.reduce((max, item) => Math.max(max, Number(item.id) || 0), 0);
-            continueWriteChain = normalizedChain;
-            continueChapterIdCounter = Math.max(
-                Number(importData.continueChapterIdCounter) || 0,
-                maxId + 1,
-                1
-            );
-            extension_settings[extensionName].continueWriteChain = continueWriteChain;
-            extension_settings[extensionName].continueChapterIdCounter = continueChapterIdCounter;
-            if (importData.selectedBaseChapterId !== undefined && importData.selectedBaseChapterId !== null && importData.selectedBaseChapterId !== '') {
-                extension_settings[extensionName].selectedBaseChapterId = String(importData.selectedBaseChapterId);
-                $('#write-chapter-select').val(String(importData.selectedBaseChapterId)).trigger('change');
-            }
-            saveSettingsDebounced();
-            renderContinueWriteChain(continueWriteChain);
-            NovelReader.renderChapterList();
-            toastr.success(`续写章节导入完成！共导入${continueWriteChain.length}章`, "小说续写器");
-        } catch (error) {
-            console.error('续写章节导入失败:', error);
-            toastr.error(`导入失败：${error.message}，请检查JSON文件格式是否正确`, "小说续写器");
-        } finally {
-            $('#continue-chain-file-upload').val('');
-        }
-    };
-    reader.onerror = () => {
-        toastr.error('文件读取失败，请检查文件', "小说续写器");
-        $('#continue-chain-file-upload').val('');
-    };
-    reader.readAsText(file, 'UTF-8');
-}
 // ==============================================
 // 新增：分批合并图谱核心功能
 // ==============================================
@@ -1237,7 +1154,6 @@ async function loadSettings() {
     const mergedGraph = settings.mergedGraph || {};
     $("#merged-graph-preview").val(Object.keys(mergedGraph).length > 0 ? JSON.stringify(mergedGraph, null, 2) : "");
     $("#write-content-preview").val(settings.writeContentPreview || "");
-    $("#write-new-chapter-outline").val(settings.newChapterOutline || "");
     if (settings.graphValidateResultShow) $("#graph-validate-result").show();
     if (settings.qualityResultShow) $("#quality-result-block").show();
     $("#precheck-status").text(settings.precheckStatus || "未执行").removeClass("status-default status-success status-danger").addClass(settings.precheckStatus === "通过"?"status-success": settings.precheckStatus === "不通过"? "status-danger": "status-default");
@@ -1259,6 +1175,11 @@ async function loadSettings() {
     // 原有初始化逻辑
     FloatBall.init();
     NovelReader.init();
+    // ... 保留原有代码 ...
+    $("#write-content-preview").val(settings.writeContentPreview || "");
+    // 新增：加载新章节大纲
+    $("#write-chapter-outline").val(settings.writeChapterOutline || "");
+    // ... 保留原有代码 ...
 }
 function saveDrawerState() {
     const drawerState = {};
@@ -1946,7 +1867,6 @@ function initContinueChainEvents() {
 async function generateContinueWrite(targetChainId) {
     const selectedBaseChapterId = $('#write-chapter-select').val();
     const editedBaseChapterContent = $('#write-chapter-content').val().trim();
-    const newChapterOutline = $('#write-new-chapter-outline').val().trim();
     const wordCount = parseInt($('#write-word-count').val()) || 2000;
     const mergedGraph = extension_settings[extensionName].mergedGraph || {};
     const enableQualityCheck = extension_settings[extensionName].enableQualityCheck;
@@ -1980,9 +1900,6 @@ async function generateContinueWrite(targetChainId) {
     });
     const baseChapterTitle = currentParsedChapters.find(c => c.id === baseChapterId)?.title || '基准章节';
     fullContextContent += `${baseChapterTitle}\n${editedBaseChapterContent}\n\n`;
-    if (newChapterOutline) {
-        fullContextContent += `新章节大纲\n${newChapterOutline}\n\n`;
-    }
     const targetBeforeChapters = continueWriteChain.slice(0, targetChainId + 1);
     targetBeforeChapters.forEach((chapter, index) => {
         fullContextContent += `续写章节 ${index + 1}\n${chapter.content}\n\n`;
@@ -1996,7 +1913,7 @@ async function generateContinueWrite(targetChainId) {
         conflictWarning: precheckResult.conflictWarning,
         targetChapterTitle: targetChapter.title
     });
-    const userPrompt = `小说核心设定知识图谱：${JSON.stringify(useGraph)} 完整前文上下文：${fullContextContent} ${newChapterOutline ? `新章节大纲：${newChapterOutline}` : ''} 请基于以上完整的前文内容和知识图谱，按照规则续写后续的新章节正文，确保和前文最后一段内容完美衔接，不重复前文情节。`;
+    const userPrompt = `小说核心设定知识图谱：${JSON.stringify(useGraph)} 完整前文上下文：${fullContextContent} 请基于以上完整的前文内容和知识图谱，按照规则续写后续的新章节正文，确保和前文最后一段内容完美衔接，不重复前文情节。`;
     isGeneratingWrite = true;
     stopGenerateFlag = false;
     setButtonDisabled('#write-generate-btn, .continue-write-btn', true);
@@ -2067,7 +1984,6 @@ async function generateContinueWrite(targetChainId) {
 async function generateNovelWrite() {
     const selectedChapterId = $('#write-chapter-select').val();
     const editedChapterContent = $('#write-chapter-content').val().trim();
-    const newChapterOutline = $('#write-new-chapter-outline').val().trim();
     const wordCount = parseInt($('#write-word-count').val()) || 2000;
     const mergedGraph = extension_settings[extensionName].mergedGraph || {};
     const enableQualityCheck = extension_settings[extensionName].enableQualityCheck;
@@ -2085,6 +2001,8 @@ async function generateNovelWrite() {
     }
     const baseParagraphs = editedChapterContent.split('\n').filter(p => p.trim() !== '');
     const baseLastParagraph = baseParagraphs.length > 0 ? baseParagraphs[baseParagraphs.length - 1].trim() : '';
+    const chapterOutline = $('#write-chapter-outline').val().trim();
+
     isGeneratingWrite = true;
     stopGenerateFlag = false;
     setButtonDisabled('#write-generate-btn', true);
@@ -2105,8 +2023,9 @@ async function generateNovelWrite() {
             foreshadowList: precheckResult.foreshadowList,
             wordCount: wordCount,
             conflictWarning: precheckResult.conflictWarning
+            chapterOutline: chapterOutline 
         });
-        const userPrompt = `小说核心设定知识图谱：${JSON.stringify(useGraph)}\n基准章节内容：${editedChapterContent}\n新章节大纲：${newChapterOutline || '无'}\n请基于以上内容，按照规则续写后续的章节正文。`;
+        const userPrompt = `小说核心设定知识图谱：${JSON.stringify(useGraph)}基准章节内容：${editedChapterContent}请基于以上内容，按照规则续写后续的章节正文。`;
         $('#write-status').text('正在生成续写章节，请稍候...');
         // 替换为带破限的API调用
         let continueContent = await generateRawWithBreakLimit({ systemPrompt, prompt: userPrompt, ...getActivePresetParams()});
@@ -2255,14 +2174,12 @@ jQuery(async () => {
             extension_settings[extensionName].continueWriteChain = [];
             extension_settings[extensionName].continueChapterIdCounter = 1;
             extension_settings[extensionName].selectedBaseChapterId = "";
-            extension_settings[extensionName].newChapterOutline = "";
             extension_settings[extensionName].writeContentPreview = "";
             extension_settings[extensionName].readerState = structuredClone(defaultSettings.readerState);
             // 新增：重置分批合并状态
             extension_settings[extensionName].batchMergedGraphs = [];
             batchMergedGraphs = [];
             $('#merged-graph-preview').val('');
-            $('#write-new-chapter-outline').val('');
             $('#write-content-preview').val('');
             continueWriteChain = [];
             continueChapterIdCounter = 1;
@@ -2301,14 +2218,12 @@ jQuery(async () => {
             extension_settings[extensionName].continueWriteChain = [];
             extension_settings[extensionName].continueChapterIdCounter = 1;
             extension_settings[extensionName].selectedBaseChapterId = "";
-            extension_settings[extensionName].newChapterOutline = "";
             extension_settings[extensionName].writeContentPreview = "";
             extension_settings[extensionName].readerState = structuredClone(defaultSettings.readerState);
             // 新增：重置分批合并状态
             extension_settings[extensionName].batchMergedGraphs = [];
             batchMergedGraphs = [];
             $('#merged-graph-preview').val('');
-            $('#write-new-chapter-outline').val('');
             $('#write-content-preview').val('');
             continueWriteChain = [];
             continueChapterIdCounter = 1;
@@ -2485,6 +2400,12 @@ jQuery(async () => {
             $('#write-chapter-content').val(targetChapter.content).prop('readonly', false);
         }
     });
+    // 新增：监听新章节大纲输入并自动保存
+    $("#write-chapter-outline").off("input").on("input", (e) => {
+    const outline = $(e.target).val();
+    extension_settings[extensionName].writeChapterOutline = outline;
+    saveSettingsDebounced();
+    });
     $("#graph-update-modified-btn").off("click").on("click", () => {
         const selectedChapterId = $('#write-chapter-select').val();
         const modifiedContent = $('#write-chapter-content').val().trim();
@@ -2506,10 +2427,6 @@ jQuery(async () => {
             return;
         }
         validateContinuePrecondition(selectedChapterId, modifiedContent);
-    });
-    $("#write-new-chapter-outline").off("input").on("input", (e) => {
-        extension_settings[extensionName].newChapterOutline = $(e.target).val();
-        saveSettingsDebounced();
     });
     $("#quality-check-switch").off("change").on("change", (e) => {
         const isChecked = Boolean($(e.target).prop("checked"));
@@ -2566,14 +2483,6 @@ jQuery(async () => {
         extension_settings[extensionName].qualityResultShow = false;
         saveSettingsDebounced();
         toastr.success('已清空续写内容', "小说续写器");
-    });
-    $("#import-chain-btn").off("click").on("click", () => {
-        $("#continue-chain-file-upload").click();
-    });
-    $("#export-chain-btn").off("click").on("click", exportContinueWriteChain);
-    $("#continue-chain-file-upload").off("change").on("change", (e) => {
-        const file = e.target.files[0];
-        if (file) importContinueWriteChain(file);
     });
     $("#clear-chain-btn").off("click").on("click", () => {
         continueWriteChain = [];

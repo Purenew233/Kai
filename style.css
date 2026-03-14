@@ -1077,4 +1077,8 @@
     min-width: 60px;
     padding: 7px 10px;
   }
+  .novel-writer-extension-root #write-chapter-outline {
+    border-left: 3px solid var(--novel-secondary);
+    background: linear-gradient(90deg, rgba(6, 182, 212, 0.05) 0%, var(--novel-bg-input) 100%);
+  }
 }
